@@ -92,47 +92,53 @@ var PolylineTextPath = {
         }
 
         /* Put it along the path using textPath */
-        var textNode = L.Path.prototype._createElement('text'),
+        if (!this._textNode) {
+            var textNode = L.Path.prototype._createElement('text'),
             textPath = L.Path.prototype._createElement('textPath');
 
-        var dy = options.offset || this._path.getAttribute('stroke-width');
+            var dy = options.offset || this._path.getAttribute('stroke-width');
 
-        textPath.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", '#'+id);
-        textNode.setAttribute('dy', dy);
-        for (var attr in options.attributes)
-            textNode.setAttribute(attr, options.attributes[attr]);
-        textPath.appendChild(document.createTextNode(text));
-        textNode.appendChild(textPath);
-        this._textNode = textNode;
+            textPath.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", '#'+id);
+            textNode.setAttribute('dy', dy);
+            for (var attr in options.attributes)
+                textNode.setAttribute(attr, options.attributes[attr]);
+            textPath.appendChild(document.createTextNode(text));
+            textNode.appendChild(textPath);
+            this._textNode = textNode;
+            this._textPath = textPath;
 
-        if (options.below) {
-            svg.insertBefore(textNode, svg.firstChild);
+            if (options.below) {
+                svg.insertBefore(textNode, svg.firstChild);
+            }
+            else {
+                svg.appendChild(textNode);
+            }
+
+            /* Center text according to the path's bounding box */
+            if (options.center) {
+                var textWidth = textNode.getBBox().width;
+                var pathWidth = this._path.getBoundingClientRect().width;
+                /* Set the position for the left side of the textNode */
+                textNode.setAttribute('dx', ((pathWidth / 2) - (textWidth / 2)));
+            }
+
+            /* Initialize mouse events for the additional nodes */
+            if (this.options.clickable) {
+                if (L.Browser.svg || !L.Browser.vml) {
+                    textPath.setAttribute('class', 'leaflet-clickable');
+                }
+
+                L.DomEvent.on(textNode, 'click', this._onMouseClick, this);
+
+                var events = ['dblclick', 'mousedown', 'mouseover',
+                              'mouseout', 'mousemove', 'contextmenu'];
+                for (var i = 0; i < events.length; i++) {
+                    L.DomEvent.on(textNode, events[i], this._fireMouseEvent, this);
+                }
+            }
         }
         else {
-            svg.appendChild(textNode);
-        }
-
-        /* Center text according to the path's bounding box */
-        if (options.center) {
-            var textWidth = textNode.getBBox().width;
-            var pathWidth = this._path.getBoundingClientRect().width;
-            /* Set the position for the left side of the textNode */
-            textNode.setAttribute('dx', ((pathWidth / 2) - (textWidth / 2)));
-        }
-
-        /* Initialize mouse events for the additional nodes */
-        if (this.options.clickable) {
-            if (L.Browser.svg || !L.Browser.vml) {
-                textPath.setAttribute('class', 'leaflet-clickable');
-            }
-
-            L.DomEvent.on(textNode, 'click', this._onMouseClick, this);
-
-            var events = ['dblclick', 'mousedown', 'mouseover',
-                          'mouseout', 'mousemove', 'contextmenu'];
-            for (var i = 0; i < events.length; i++) {
-                L.DomEvent.on(textNode, events[i], this._fireMouseEvent, this);
-            }
+            this._textNode.textContent = text;
         }
 
         return this;
