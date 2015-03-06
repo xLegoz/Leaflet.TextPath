@@ -138,7 +138,7 @@ var PolylineTextPath = {
             }
         }
         else {
-            this._textNode.textContent = text;
+            this._textPath.textContent = text;
         }
 
         return this;
