@@ -15,6 +15,10 @@ var PolylineTextPath = {
 
     onAdd: function (map) {
         __onAdd.call(this, map);
+        this.setStyle({
+            stroke: false
+        });
+        this.alignment = 0;
         this._textRedraw();
     },
 
@@ -32,7 +36,7 @@ var PolylineTextPath = {
 
     _updatePath: function () {
         __updatePath.call(this);
-        this._textRedraw();
+        // this._textRedraw();
     },
 
     _textRedraw: function () {
@@ -43,23 +47,110 @@ var PolylineTextPath = {
         }
     },
 
-    setText: function (text, options) {
-        this._text = text;
-        this._textOptions = options;
+    _getBounds: function(latlng, text, options) {
+        /**
+         * Stateless fcn
+         */
 
+        /* Compute single pattern length */
+        var max = 0;
+        if (Array.isArray(text)) {
+            for (var i = 0; i < text.length; ++i) {
+                var length = this._compute_length(text[i], options);
+                if (max < length) {
+                    max = length;
+                }
+            }
+        }
+        else {
+            max = this._compute_length(text, options);
+        }
+        // max = max * 2;
+
+        var point = map.latLngToLayerPoint(latlng);
+
+        var left_point;
+        var right_point;
+
+        if (this.alignment === 0) {
+            left_point = new L.Point(point.x - (max * 0.5), point.y);
+            right_point = new L.Point(point.x + (max * 0.5), point.y);
+        }
+        else if (this.alignment === 90) {
+            left_point = new L.Point(point.x, point.y + (max * 0.5));
+            right_point = new L.Point(point.x, point.y - (max * 0.5));
+        }
+        else if (this.alignment === 180) {
+            left_point = new L.Point(point.x + (max * 0.5), point.y);
+            right_point = new L.Point(point.x - (max * 0.5), point.y);
+        }
+        else if (this.alignment === 270) {
+            left_point = new L.Point(point.x, point.y - (max * 0.5));
+            right_point = new L.Point(point.x, point.y + (max * 0.5));
+        }
+
+        var left_latlng = map.layerPointToLatLng(left_point);
+        var right_latlng = map.layerPointToLatLng(right_point);
+
+        return [left_latlng, right_latlng];
+    },
+
+    _compute_length: function(text, options) {
+        var svg = this._map._pathRoot;
+        var pattern = L.Path.prototype._createElement('text');
+        for (var attr in options.attributes) {
+            pattern.setAttribute(attr, options.attributes[attr]);
+        }
+        pattern.appendChild(document.createTextNode(text));
+        svg.appendChild(pattern);
+        var alength = pattern.getComputedTextLength();
+        svg.removeChild(pattern);
+        return alength;
+    },
+
+    rotate_right: function() {
+        this.alignment += 90;
+        if (this.alignment === 360) {
+            this.alignment = 0;
+        }
+
+        var text = this._text.replace(/ /g, '\u00A0').split("\n");
+
+        var center = this.getBounds().getCenter();
+        this.setLatLngs(this._getBounds(center, text, this._textOptions));
+    },
+
+    setText: function (text, options) {
+        var svg = this._map._pathRoot;
+        this._text = text;
         /* If not in SVG mode or Polyline not added to map yet return */
         /* setText will be called by onAdd, using value stored in this._text */
         if (!L.Browser.svg || typeof this._map === 'undefined') {
           return this;
         }
 
+        var dark_basemap = (globalData.basemap === "dark_map" || 
+                            globalData.basemap === "googleLayerHybrid" ||
+                            globalData.basemap === "googleLayerSatellite");
+
         var defaults = {
             repeat: false,
-            fillColor: 'black',
-            attributes: {},
-            below: false,
+            attributes: {
+                class: "leaflet-label-text"
+            },
+            center: true
         };
+
+        var basemap_options = {
+            attributes: {
+                fill: (dark_basemap) ? 'white' : 'black'
+            }
+        };
+
         options = L.Util.extend(defaults, options);
+        options = L.Util.extend(options, basemap_options);
+        this._textOptions = options;
+
 
         /* If empty text, hide */
         if (!text) {
@@ -77,22 +168,17 @@ var PolylineTextPath = {
         var svg = this._map._pathRoot;
         this._path.setAttribute('id', id);
 
-        if (options.repeat) {
-            /* Compute single pattern length */
-            var pattern = L.Path.prototype._createElement('text');
-            for (var attr in options.attributes)
-                pattern.setAttribute(attr, options.attributes[attr]);
-            pattern.appendChild(document.createTextNode(text));
-            svg.appendChild(pattern);
-            var alength = pattern.getComputedTextLength();
-            svg.removeChild(pattern);
+        text = text.split("\n");
+        text.map(function(elem) {
+            return (elem === "") ? " " : elem;
+        });
 
-            /* Create string as long as path */
-            text = new Array(Math.ceil(this._path.getTotalLength() / alength)).join(text);
-        }
+        var center = this.getBounds().getCenter();
+        this.setLatLngs(this._getBounds(center, text, options));
 
         /* Put it along the path using textPath */
         if (!this._textNode) {
+
             var textNode = L.Path.prototype._createElement('text'),
             textPath = L.Path.prototype._createElement('textPath');
 
@@ -100,9 +186,27 @@ var PolylineTextPath = {
 
             textPath.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", '#'+id);
             textNode.setAttribute('dy', dy);
-            for (var attr in options.attributes)
+            for (var attr in options.attributes) {
                 textNode.setAttribute(attr, options.attributes[attr]);
-            textPath.appendChild(document.createTextNode(text));
+            }
+
+
+            var previous_length = 0;
+            for (var i = 0; i < text.length; ++i) {
+                var tspan = L.Path.prototype._createElement('tspan');
+                tspan.setAttribute('dy', (i === 0) ? 0 : 20);
+                tspan.setAttribute('dx', -previous_length);
+                tspan.appendChild(document.createTextNode(text[i]));
+
+                if (i !== text.length -1) {
+                    var alength = this._compute_length(text[i], options);
+                    if (alength !== 0) {
+                        previous_length =  alength;
+                    }
+                }
+
+                textPath.appendChild(tspan);
+            }
             textPath.classList.add("leaflet-label-text");
             textNode.appendChild(textPath);
             this._textNode = textNode;
@@ -139,7 +243,36 @@ var PolylineTextPath = {
             }
         }
         else {
-            this._textPath.textContent = text;
+            var children = this._textPath.children.length;
+            var previous_length = 0;
+            for (var i = 0; i < text.length; ++i) {
+                if (i < children) {
+                    this._textPath.children[i].textContent = text[i];
+                    this._textPath.children[i].setAttribute('dx', -previous_length);
+                }
+                else {
+                    var tspan = L.Path.prototype._createElement('tspan');
+                    tspan.setAttribute('dy', (i === 0) ? 0 : 20);
+                    tspan.setAttribute('dx', -previous_length);
+
+                    tspan.appendChild(document.createTextNode(text[i]));
+                    this._textPath.appendChild(tspan);   
+                }
+
+                if (i !== text.length -1) {
+                    var alength = this._compute_length(text[i], options);
+                    if (alength !== 0) {
+                        previous_length =  alength;
+                    }
+                }
+
+            }
+
+            if (text.length < children) {
+                for (var i = children - 1; i > text.length - 1; --i) {
+                    this._textPath.children[i].remove();
+                }
+            }
         }
 
         return this;
