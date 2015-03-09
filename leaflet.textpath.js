@@ -103,6 +103,7 @@ var PolylineTextPath = {
             for (var attr in options.attributes)
                 textNode.setAttribute(attr, options.attributes[attr]);
             textPath.appendChild(document.createTextNode(text));
+            textPath.classList.add("leaflet-label-text");
             textNode.appendChild(textPath);
             this._textNode = textNode;
             this._textPath = textPath;
@@ -125,7 +126,7 @@ var PolylineTextPath = {
             /* Initialize mouse events for the additional nodes */
             if (this.options.clickable) {
                 if (L.Browser.svg || !L.Browser.vml) {
-                    textPath.setAttribute('class', 'leaflet-clickable');
+                    textPath.classList.add('leaflet-clickable');
                 }
 
                 L.DomEvent.on(textNode, 'click', this._onMouseClick, this);
