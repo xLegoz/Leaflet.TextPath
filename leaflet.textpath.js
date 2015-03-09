@@ -141,14 +141,8 @@ var PolylineTextPath = {
             center: true
         };
 
-        var basemap_options = {
-            attributes: {
-                fill: (dark_basemap) ? 'white' : 'black'
-            }
-        };
-
         options = L.Util.extend(defaults, options);
-        options = L.Util.extend(options, basemap_options);
+        options.attributes.fill = (dark_basemap) ? 'white' : 'black';
         this._textOptions = options;
 
 
@@ -169,7 +163,7 @@ var PolylineTextPath = {
         this._path.setAttribute('id', id);
 
         text = text.split("\n");
-        text.map(function(elem) {
+        text = text.map(function(elem) {
             return (elem === "") ? " " : elem;
         });
 
@@ -195,16 +189,17 @@ var PolylineTextPath = {
             for (var i = 0; i < text.length; ++i) {
                 var tspan = L.Path.prototype._createElement('tspan');
                 tspan.setAttribute('dy', (i === 0) ? 0 : 20);
-                tspan.setAttribute('dx', -previous_length);
+
                 tspan.appendChild(document.createTextNode(text[i]));
-
-                if (i !== text.length -1) {
-                    var alength = this._compute_length(text[i], options);
-                    if (alength !== 0) {
-                        previous_length =  alength;
-                    }
+                
+                var alength = this._compute_length(text[i], options);
+                if (alength !== 0) {
+                    tspan.setAttribute('dx', -previous_length);
+                    previous_length =  alength;
                 }
-
+                else {
+                    tspan.setAttribute('dx', -6);
+                }
                 textPath.appendChild(tspan);
             }
             textPath.classList.add("leaflet-label-text");
@@ -246,24 +241,27 @@ var PolylineTextPath = {
             var children = this._textPath.children.length;
             var previous_length = 0;
             for (var i = 0; i < text.length; ++i) {
+                var tspan;
                 if (i < children) {
-                    this._textPath.children[i].textContent = text[i];
-                    this._textPath.children[i].setAttribute('dx', -previous_length);
+                    tspan = this._textPath.children[i];
+                    tspan.textContent = text[i];
                 }
                 else {
-                    var tspan = L.Path.prototype._createElement('tspan');
+                    tspan = L.Path.prototype._createElement('tspan');
                     tspan.setAttribute('dy', (i === 0) ? 0 : 20);
-                    tspan.setAttribute('dx', -previous_length);
 
                     tspan.appendChild(document.createTextNode(text[i]));
                     this._textPath.appendChild(tspan);   
                 }
 
-                if (i !== text.length -1) {
-                    var alength = this._compute_length(text[i], options);
-                    if (alength !== 0) {
-                        previous_length =  alength;
-                    }
+
+                var alength = this._compute_length(text[i], options);
+                if (alength !== 0) {
+                    tspan.setAttribute('dx', -previous_length);
+                    previous_length =  alength;
+                }
+                else {
+                    tspan.setAttribute('dx', -6);
                 }
 
             }
